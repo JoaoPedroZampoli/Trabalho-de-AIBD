@@ -39,7 +39,7 @@ const categorySchema = new mongoose.Schema({
 
 categorySchema.virtual('accuracy').get(function() {
     const total = this.totalCorrect + this.totalIncorrect;
-    return total > 0 ? ((this.totalCorrect / total) * 100).tofixed(1) : 0;
+    return total > 0 ? ((this.totalCorrect / total) * 100).toFixed(1) : 0;
 });
 
 module.exports = mongoose.model('Category', categorySchema);

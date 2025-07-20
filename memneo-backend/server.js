@@ -3,7 +3,8 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const connectDB = require('./config/database')
+const connectDB = require('./config/database');
+const swagger = require('./config/swagger');
 
 const userRoutes = require('./routes/users');
 const flashcardRoutes = require('./routes/flashcards');
@@ -17,6 +18,25 @@ connectDB();
 
 app.use(cors());
 app.use(express.json());
+
+// Swagger Documentation
+app.use('/api-docs', swagger.serve, swagger.setup);
+
+// Welcome route
+app.get('/', (req, res) => {
+    res.json({
+        message: '🚀 Memneo API - Sistema de Flashcards',
+        version: '1.0.0',
+        documentation: '/api-docs',
+        endpoints: {
+            users: '/api/users',
+            flashcards: '/api/flashcards', 
+            categories: '/api/categories',
+            sessions: '/api/sessions',
+            analytics: '/api/analytics'
+        }
+    });
+});
 
 // Routes
 app.use('/api/users', userRoutes);
