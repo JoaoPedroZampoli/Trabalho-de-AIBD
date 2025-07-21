@@ -12,7 +12,7 @@ const {
 const { auth } = require('../middleware/auth');
 
 // Dashboard geral
-router.get('/dashboard', getDashboardStats);
+router.get('/dashboard', auth, getDashboardStats);
 
 // Categorias com mais acertos/erros
 router.get('/categories-stats', getCategoriesStats);

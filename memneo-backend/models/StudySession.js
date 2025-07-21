@@ -49,6 +49,10 @@ const studySessionSchema = new mongoose.Schema({
     accuracy: {
         type: Number,
         default: 0
+    },
+    flashcardsStudied: {
+        type: Number,
+        default: 0
     }
 }, {
     timestamps: true
@@ -57,6 +61,7 @@ const studySessionSchema = new mongoose.Schema({
 studySessionSchema.pre('save', function(next) {
     if (this.answers.length > 0) {
         this.totalCards = this.answers.length;
+        this.flashcardsStudied = this.answers.length;
         this.totalCorrect = this.answers.filter(answer => answer.isCorrect).length;
         this.accuracy = this.totalCards > 0 ? ((this.totalCorrect / this.totalCards) * 100).toFixed(1) : 0; // Calcula a precisão, usa toFixed para limitar a 1 casa decimal
     }

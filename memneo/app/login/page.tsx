@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authApi, authUtils, ApiError, type LoginData } from '@/lib/api';
+import { useToastHelpers } from '@/lib/toast-types';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -12,10 +13,9 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [darkMode, setDarkMode] = useState(false);
-    const [error, setError] = useState('');
-    const [successMessage, setSuccessMessage] = useState('');
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { success, error } = useToastHelpers();
 
     useEffect(() => {
         // Check for saved theme preference
@@ -30,14 +30,14 @@ export default function LoginPage() {
         // Check for success message from registration
         const message = searchParams.get('message');
         if (message) {
-            setSuccessMessage(message);
+            success('Sucesso!', message);
         }
 
         // Redirect if already authenticated
         if (authUtils.isAuthenticated()) {
             router.push('/dashboard');
         }
-    }, [router, searchParams]);
+    }, [router, searchParams, success]);
 
     const toggleDarkMode = () => {
         setDarkMode(!darkMode);
@@ -55,13 +55,11 @@ export default function LoginPage() {
         
         // Validação básica
         if (!email || !password) {
-            setError('Por favor, preencha todos os campos.');
+            error('Campos obrigatórios', 'Por favor, preencha todos os campos.');
             return;
         }
 
         setIsLoading(true);
-        setError('');
-        setSuccessMessage('');
         
         try {
             const loginData: LoginData = {
@@ -75,21 +73,25 @@ export default function LoginPage() {
             authUtils.setToken(response.token);
             authUtils.setUser(response.user);
             
-            // Redirect para dashboard
-            router.push('/dashboard');
-        } catch (error) {
-            console.error('Login failed:', error);
+            success('Login realizado!', `Bem-vindo, ${response.user.name}!`);
             
-            if (error instanceof ApiError) {
-                if (error.status === 400) {
-                    setError('Email ou senha incorretos.');
-                } else if (error.status === 0) {
-                    setError('Erro de conexão. Verifique se o servidor está rodando.');
+            // Redirect para dashboard
+            setTimeout(() => {
+                router.push('/dashboard');
+            }, 1000);
+        } catch (err) {
+            console.error('Login failed:', err);
+            
+            if (err instanceof ApiError) {
+                if (err.status === 400) {
+                    error('Credenciais inválidas', 'Email ou senha incorretos.');
+                } else if (err.status === 0) {
+                    error('Erro de conexão', 'Verifique se o servidor está rodando.');
                 } else {
-                    setError('Erro interno do servidor. Tente novamente.');
+                    error('Erro do servidor', 'Erro interno do servidor. Tente novamente.');
                 }
             } else {
-                setError('Erro inesperado. Tente novamente.');
+                error('Erro inesperado', 'Tente novamente.');
             }
         } finally {
             setIsLoading(false);
@@ -154,42 +156,6 @@ export default function LoginPage() {
                                 Entre na sua conta para continuar aprendendo
                             </p>
                         </div>
-
-                        {/* Success Message */}
-                        {successMessage && (
-                            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
-                                <div className="flex">
-                                    <div className="flex-shrink-0">
-                                        <svg className="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.236 4.53L8.465 10.5a.75.75 0 00-1.06 1.061l2.999 2.999a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
-                                        </svg>
-                                    </div>
-                                    <div className="ml-3">
-                                        <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                                            {successMessage}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Error Message */}
-                        {error && (
-                            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                                <div className="flex">
-                                    <div className="flex-shrink-0">
-                                        <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-                                        </svg>
-                                    </div>
-                                    <div className="ml-3">
-                                        <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                                            {error}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Login Form */}
                         <form className="space-y-6" onSubmit={handleSubmit}>

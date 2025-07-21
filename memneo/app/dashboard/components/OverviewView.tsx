@@ -1,21 +1,51 @@
+'use client';
+
+import { useEffect } from 'react';
 import StatsCard from './StatsCard';
 import QuickActionCard from './QuickActionCard';
 import DeckCard from './DeckCard';
-import { Deck, StudyStats, ViewType } from '../types';
+import { StudyStats, ViewType } from '../types';
+import { useAnalytics } from '@/lib/useAnalytics';
+import { useFlashcards } from '@/lib/useFlashcards';
+import { authUtils } from '@/lib/api';
 
 interface OverviewViewProps {
     studyStats: StudyStats;
-    recentDecks: Deck[];
     setCurrentView: (view: ViewType) => void;
+    onStatsUpdate?: (stats: StudyStats) => void;
 }
 
-export default function OverviewView({ studyStats, recentDecks, setCurrentView }: OverviewViewProps) {
+export default function OverviewView({ studyStats, setCurrentView, onStatsUpdate }: OverviewViewProps) {
+    const { dashboardStats, isLoading: statsLoading, loadDashboardStats } = useAnalytics();
+    const { flashcards, isLoading: flashcardsLoading, loadFlashcards } = useFlashcards();
+    const user = authUtils.getUser();
+
+    // Carregar dados se ainda não foram carregados
+    useEffect(() => {
+        if (!dashboardStats && !statsLoading) {
+            loadDashboardStats();
+        }
+        if (flashcards.length === 0 && !flashcardsLoading) {
+            loadFlashcards({ limit: 4 }); // Carregar apenas os primeiros 4 para a seção "Decks Recentes"
+        }
+    }, [dashboardStats, statsLoading, loadDashboardStats, flashcards.length, flashcardsLoading, loadFlashcards]);
+
+    useEffect(() => {
+        if (dashboardStats && onStatsUpdate) {
+            onStatsUpdate({
+                totalCards: dashboardStats.totalFlashcards || 0,
+                studiedToday: dashboardStats.todaySessions || 0,
+                streak: dashboardStats.userStreak || studyStats.streak || 0, // Usar streak do dashboard ou do estado de estudo
+                accuracy: dashboardStats.overallAccuracy || 0
+            });
+        }
+    }, [dashboardStats, onStatsUpdate]);
     return (
         <>
             {/* Welcome Section */}
             <div className="mb-8">
                 <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                    Bem-vindo de volta! 👋
+                    Bem-vindo de volta, {user?.name?.split(' ')[0] || 'Estudante'}! 👋
                 </h2>
                 <p className="text-gray-700 dark:text-white/80">
                     Continue sua jornada de aprendizado com seus flashcards
@@ -24,7 +54,38 @@ export default function OverviewView({ studyStats, recentDecks, setCurrentView }
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {/* Commented out stats cards */}
+                <StatsCard
+                    title="Cards Criados"
+                    value={statsLoading ? "..." : (dashboardStats?.totalFlashcards?.toString() || studyStats?.totalCards?.toString() || "0")}
+                    icon={<span className="text-2xl">📚</span>}
+                    bgColor="bg-white/80 dark:bg-white/5"
+                    iconBgColor="bg-blue-100 dark:bg-blue-900/30"
+                    iconColor="text-blue-600 dark:text-blue-400"
+                />
+                <StatsCard
+                    title="Estudados Hoje"
+                    value={statsLoading ? "..." : (dashboardStats?.todaySessions?.toString() || studyStats?.studiedToday?.toString() || "0")}
+                    icon={<span className="text-2xl">📖</span>}
+                    bgColor="bg-white/80 dark:bg-white/5"
+                    iconBgColor="bg-green-100 dark:bg-green-900/30"
+                    iconColor="text-green-600 dark:text-green-400"
+                />
+                <StatsCard
+                title="Total de Sessões"
+                value={statsLoading ? "..." : `${dashboardStats?.totalSessions || 0}`}
+                icon={<span className="text-2xl">🗃️</span>}
+                bgColor="bg-white/80 dark:bg-white/5"
+                iconBgColor="bg-indigo-100 dark:bg-indigo-900/30"
+                iconColor="text-indigo-600 dark:text-indigo-400"
+            />
+                <StatsCard
+                    title="Precisão"
+                    value={statsLoading ? "..." : `${dashboardStats?.overallAccuracy || studyStats?.accuracy || 0}%`}
+                    icon={<span className="text-2xl">🎯</span>}
+                    bgColor="bg-white/80 dark:bg-white/5"
+                    iconBgColor="bg-purple-100 dark:bg-purple-900/30"
+                    iconColor="text-purple-600 dark:text-purple-400"
+                />
             </div>
 
             {/* Quick Actions & Stats */}
@@ -57,7 +118,7 @@ export default function OverviewView({ studyStats, recentDecks, setCurrentView }
                         </div>
                         <div>
                             <h3 className="text-lg font-bold mb-2">Sequência</h3>
-                            <p className="text-white/90 text-2xl font-bold">{studyStats.streak}</p>
+                            <p className="text-white/90 text-2xl font-bold">{statsLoading ? "..." : `${dashboardStats?.userStreak || studyStats?.streak || 0}`}</p>
                             <p className="text-white/90 text-sm">dias consecutivos</p>
                         </div>
                     </div>
@@ -139,9 +200,25 @@ export default function OverviewView({ studyStats, recentDecks, setCurrentView }
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {recentDecks.slice(0, 4).map((deck) => (
-                        <DeckCard key={deck.id} deck={deck} variant="compact" />
+                    {flashcards.slice(0, 4).map((flashcard) => (
+                        <DeckCard 
+                            key={flashcard._id || flashcard.id} 
+                            deck={{
+                                id: 1, // ID simplificado para compatibilidade
+                                name: flashcard.question.substring(0, 50) + '...',
+                                cards: 1,
+                                studied: flashcard.correctAttempts || 0,
+                                accuracy: flashcard.totalAttempts ? Math.round(((flashcard.correctAttempts || 0) / flashcard.totalAttempts) * 100) : 0,
+                                category: flashcard.category
+                            }} 
+                            variant="compact" 
+                        />
                     ))}
+                    {flashcards.length === 0 && !flashcardsLoading && (
+                        <div className="col-span-2 text-center py-8 text-gray-500 dark:text-gray-400">
+                            Nenhum flashcard encontrado. Crie seu primeiro flashcard!
+                        </div>
+                    )}
                 </div>
             </div>
         </>

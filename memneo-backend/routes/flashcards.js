@@ -87,11 +87,18 @@ router.get('/:id', async (req, res) => {
 // Criar novo flashcard
 router.post('/', auth, async (req, res) => {
     try {
-        const { question, options, answer, categoryId, difficulty, tags } = req.body;
+        const { question, options, answer, category, categoryId, difficulty, tags } = req.body;
+
+        // Suportar tanto 'category' quanto 'categoryId'
+        const categoryIdToUse = categoryId || category;
+        
+        if (!categoryIdToUse) {
+            return res.status(400).json({ error: 'Categoria é obrigatória' });
+        }
 
         // Verificar se a categoria existe
-        const category = await Category.findById(categoryId);
-        if (!category) {
+        const categoryDoc = await Category.findById(categoryIdToUse);
+        if (!categoryDoc) {
             return res.status(400).json({ error: 'Categoria não encontrada' });
         }
 
@@ -99,21 +106,37 @@ router.post('/', auth, async (req, res) => {
             question,
             options,
             answer,
-            category: categoryId,
+            category: categoryIdToUse,
             difficulty,
-            tags: tags || []
+            tags: tags || [],
+            createdBy: req.userId // Adicionar o userId do middleware auth
         });
 
         await flashcard.save();
         await flashcard.populate('category', 'name color');
 
         // Atualizar contador de cards na categoria
-        category.totalCards += 1;
-        await category.save();
+        categoryDoc.totalCards += 1;
+        await categoryDoc.save();
 
         res.status(201).json({
             message: 'Flashcard criado com sucesso',
-            flashcard
+            flashcard: {
+                _id: flashcard._id,
+                id: flashcard._id,
+                question: flashcard.question,
+                options: flashcard.options,
+                answer: flashcard.answer,
+                category: flashcard.category.name,
+                categoryColor: flashcard.category.color,
+                difficulty: flashcard.difficulty,
+                tags: flashcard.tags,
+                totalAttempts: flashcard.totalAttempts || 0,
+                correctAttempts: flashcard.correctAttempts || 0,
+                incorrectAttempts: flashcard.incorrectAttempts || 0,
+                createdAt: flashcard.createdAt,
+                updatedAt: flashcard.updatedAt
+            }
         });
     } catch (error) {
         console.error('Erro ao criar flashcard:', error);

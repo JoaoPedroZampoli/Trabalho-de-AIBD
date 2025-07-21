@@ -12,31 +12,58 @@ import CategoriesView from './components/CategoriesView';
 import AnalyticsView from './components/AnalyticsView';
 import { Deck, Category, StudyStats, ViewType } from './types';
 import { authUtils } from '@/lib/api';
+import { useToastHelpers } from '@/lib/toast-types';
+import { useFlashcards } from '@/lib/useFlashcards';
+import { useCategories } from '@/lib/useCategories';
+import { useAnalytics } from '@/lib/useAnalytics';
 
 export default function DashboardPage() {
     const [darkMode, setDarkMode] = useState(false);
     const [currentView, setCurrentView] = useState<ViewType>('overview');
-    const [successMessage, setSuccessMessage] = useState('');
     const [studyStats, setStudyStats] = useState<StudyStats>({
-        totalCards: 145,
-        studiedToday: 23,
-        streak: 7,
-        accuracy: 85
+        totalCards: 0,
+        studiedToday: 0,
+        streak: 0,
+        accuracy: 0
     });
-    const [recentDecks, setRecentDecks] = useState<Deck[]>([
-        { id: 1, name: 'JavaScript Fundamentals', cards: 25, studied: 18, accuracy: 88, category: 'Programação' },
-        { id: 2, name: 'React Hooks', cards: 15, studied: 12, accuracy: 92, category: 'Programação' },
-        { id: 3, name: 'Database Concepts', cards: 30, studied: 8, accuracy: 76, category: 'Banco de Dados' },
-        { id: 4, name: 'Algorithms & Data Structures', cards: 40, studied: 25, accuracy: 82, category: 'Ciência da Computação' }
-    ]);
-    const [categories, setCategories] = useState<Category[]>([
-        { id: 1, name: 'Programação', decks: 8, totalCards: 150, color: 'bg-blue-500' },
-        { id: 2, name: 'Banco de Dados', decks: 3, totalCards: 75, color: 'bg-green-500' },
-        { id: 3, name: 'Ciência da Computação', decks: 5, totalCards: 120, color: 'bg-purple-500' },
-        { id: 4, name: 'Design', decks: 2, totalCards: 45, color: 'bg-pink-500' }
-    ]);
+    
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { success, info } = useToastHelpers();
+    
+    // Usar dados reais dos hooks
+    const { flashcards, loadFlashcards, isLoading: flashcardsLoading } = useFlashcards();
+    const { categories, loadCategories, isLoading: categoriesLoading } = useCategories();
+    const { dashboardStats, loadDashboardStats, isLoading: analyticsLoading } = useAnalytics();
+
+    // Effect para carregar dados apenas uma vez na inicialização
+    useEffect(() => {
+        const loadInitialData = async () => {
+            try {
+                await Promise.all([
+                    loadFlashcards(),
+                    loadCategories(),
+                    loadDashboardStats()
+                ]);
+            } catch (error) {
+                console.error('Erro ao carregar dados iniciais:', error);
+            }
+        };
+
+        loadInitialData();
+    }, [loadFlashcards, loadCategories, loadDashboardStats]); // Adicionar dependências necessárias
+
+    useEffect(() => {
+        // Atualizar estatísticas baseado nos dados reais do banco
+        if (dashboardStats) {
+            setStudyStats({
+                totalCards: dashboardStats.totalFlashcards || 0,
+                accuracy: dashboardStats.overallAccuracy || 0,
+                studiedToday: dashboardStats.todaySessions || 0,
+                streak: 0, // Backend ainda não fornece streak
+            });
+        }
+    }, [dashboardStats]);
 
     useEffect(() => {
         // Check for saved theme preference
@@ -51,22 +78,9 @@ export default function DashboardPage() {
         // Check for success message from login/registration
         const message = searchParams.get('message');
         if (message) {
-            setSuccessMessage(message);
-            // Clear message after 5 seconds
-            setTimeout(() => setSuccessMessage(''), 5000);
+            success('Sucesso!', message);
         }
-
-        // Load user data from localStorage and update stats
-        const user = authUtils.getUser();
-        if (user) {
-            setStudyStats(prev => ({
-                ...prev,
-                totalCards: user.totalCards || prev.totalCards,
-                accuracy: user.accuracy || prev.accuracy,
-                streak: user.streak || prev.streak
-            }));
-        }
-    }, [searchParams]);
+    }, [searchParams, success]);
 
     const toggleDarkMode = () => {
         setDarkMode(!darkMode);
@@ -81,40 +95,15 @@ export default function DashboardPage() {
 
     const handleLogout = () => {
         authUtils.logout();
-        router.push('/login');
+        info('Logout realizado', 'Você foi desconectado com sucesso.');
+        setTimeout(() => {
+            router.push('/login');
+        }, 1000);
     };
 
     return (
         <ProtectedRoute>
             <div className={`min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50 dark:from-slate-900 dark:via-blue-950 dark:to-emerald-950 transition-all duration-300 ${darkMode ? 'dark' : ''}`}>
-                {/* Success Message */}
-                {successMessage && (
-                    <div className="fixed top-4 right-4 z-50 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl shadow-lg">
-                        <div className="flex">
-                            <div className="flex-shrink-0">
-                                <svg className="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.236 4.53L8.465 10.5a.75.75 0 00-1.06 1.061l2.999 2.999a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                            <div className="ml-3">
-                                <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                                    {successMessage}
-                                </p>
-                            </div>
-                            <div className="ml-auto pl-3">
-                                <button
-                                    onClick={() => setSuccessMessage('')}
-                                    className="text-green-800 dark:text-green-200 hover:text-green-600 dark:hover:text-green-400"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {/* Header */}
             <DashboardHeader
                 currentView={currentView}
@@ -136,21 +125,23 @@ export default function DashboardPage() {
                 {currentView === 'overview' && (
                     <OverviewView
                         studyStats={studyStats}
-                        recentDecks={recentDecks}
                         setCurrentView={setCurrentView}
+                        onStatsUpdate={setStudyStats}
                     />
                 )}
                 {currentView === 'decks' && (
-                    <DecksView recentDecks={recentDecks} />
+                    <DecksView setCurrentView={setCurrentView} />
                 )}
                 {currentView === 'study' && (
-                    <StudyView recentDecks={recentDecks} studyStats={studyStats} />
+                    <StudyView studyStats={studyStats} setCurrentView={setCurrentView} />
                 )}
                 {currentView === 'categories' && (
-                    <CategoriesView categories={categories} />
+                    <CategoriesView 
+                        setCurrentView={setCurrentView}
+                    />
                 )}
                 {currentView === 'analytics' && (
-                    <AnalyticsView recentDecks={recentDecks} />
+                    <AnalyticsView />
                 )}
             </main>
         </div>

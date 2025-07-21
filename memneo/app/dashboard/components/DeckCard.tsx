@@ -37,7 +37,7 @@ export default function DeckCard({ deck, variant = 'full', onStudy }: DeckCardPr
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div 
                             className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                            style={{ width: `${(deck.studied / deck.cards) * 100}%` }}
+                            style={{ width: `${Math.min((deck.studied / deck.cards) * 100, 100)}%` }}
                         ></div>
                     </div>
                 </div>
@@ -86,7 +86,7 @@ export default function DeckCard({ deck, variant = 'full', onStudy }: DeckCardPr
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
                     <div 
                         className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                        style={{ width: `${(deck.studied / deck.cards) * 100}%` }}
+                        style={{ width: `${Math.min((deck.studied / deck.cards) * 100, 100)}%` }}
                     ></div>
                 </div>
                 <button 

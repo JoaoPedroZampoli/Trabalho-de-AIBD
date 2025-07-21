@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Flashcard = require('../models/Flashcard');
 const Category = require('../models/Category');
@@ -186,7 +187,7 @@ const getProgressOverTime = async (req, res) => {
         
         let matchFilter = {};
         if (userId) {
-            matchFilter.user = require('mongoose').Types.ObjectId(userId);
+            matchFilter.user = new mongoose.Types.ObjectId(userId);
         }
 
         const startDate = new Date();
@@ -239,33 +240,75 @@ const getDashboardStats = async (req, res) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const stats = await Promise.all([
-            User.countDocuments(),
-            Flashcard.countDocuments(),
-            Category.countDocuments(),
-            StudySession.countDocuments({ createdAt: { $gte: today } }),
-            StudySession.aggregate([
-                {
-                    $group: {
-                        _id: null,
-                        avgAccuracy: { $avg: '$accuracy' },
-                        totalSessions: { $sum: 1 }
+        // Se o usuário está logado, mostrar dados pessoais, senão dados gerais
+        const userId = req.userId;
+        
+        if (userId) {
+            // Estatísticas personalizadas para o usuário logado
+            const userStats = await Promise.all([
+                User.countDocuments(), // Total de usuários na plataforma
+                Flashcard.countDocuments({ createdBy: userId }), // Flashcards criados pelo usuário
+                Category.countDocuments(), // Total de categorias
+                StudySession.countDocuments({ 
+                    user: userId, 
+                    createdAt: { $gte: today } 
+                }), // Sessões do usuário hoje
+                StudySession.aggregate([
+                    { $match: { user: new mongoose.Types.ObjectId(userId) } },
+                    {
+                        $group: {
+                            _id: null,
+                            avgAccuracy: { $avg: '$accuracy' },
+                            totalSessions: { $sum: 1 }
+                        }
                     }
-                }
-            ])
-        ]);
+                ]),
+                User.findById(userId).select('streak totalCards accuracy')
+            ]);
 
-        const [totalUsers, totalFlashcards, totalCategories, todaySessions, accuracyData] = stats;
+            const [totalUsers, userFlashcards, totalCategories, todaySessions, userAccuracyData, userInfo] = userStats;
 
-        res.json({
-            totalUsers,
-            totalFlashcards,
-            totalCategories,
-            todaySessions,
-            overallAccuracy: accuracyData.length > 0 ? Math.round(accuracyData[0].avgAccuracy * 10) / 10 : 0,
-            totalSessions: accuracyData.length > 0 ? accuracyData[0].totalSessions : 0
-        });
+            res.json({
+                totalUsers,
+                totalFlashcards: userFlashcards,
+                totalCategories,
+                todaySessions,
+                overallAccuracy: userAccuracyData.length > 0 ? Math.round(userAccuracyData[0].avgAccuracy * 10) / 10 : (userInfo?.accuracy || 0),
+                totalSessions: userAccuracyData.length > 0 ? userAccuracyData[0].totalSessions : 0,
+                userStreak: userInfo?.streak || 0,
+                userTotalCards: userInfo?.totalCards || 0
+            });
+        } else {
+            // Estatísticas gerais da plataforma
+            const stats = await Promise.all([
+                User.countDocuments(),
+                Flashcard.countDocuments(),
+                Category.countDocuments(),
+                StudySession.countDocuments({ createdAt: { $gte: today } }),
+                StudySession.aggregate([
+                    {
+                        $group: {
+                            _id: null,
+                            avgAccuracy: { $avg: '$accuracy' },
+                            totalSessions: { $sum: 1 }
+                        }
+                    }
+                ])
+            ]);
+
+            const [totalUsers, totalFlashcards, totalCategories, todaySessions, accuracyData] = stats;
+
+            res.json({
+                totalUsers: Math.max(totalUsers, 1),
+                totalFlashcards,
+                totalCategories,
+                todaySessions,
+                overallAccuracy: accuracyData.length > 0 ? Math.round(accuracyData[0].avgAccuracy * 10) / 10 : 0,
+                totalSessions: accuracyData.length > 0 ? accuracyData[0].totalSessions : 0
+            });
+        }
     } catch (error) {
+        console.error('Erro em getDashboardStats:', error);
         res.status(500).json({
             message: 'Erro ao obter estatísticas do dashboard',
             error: error.message
@@ -296,7 +339,7 @@ const getUserPerformanceReport = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .limit(10),
             StudySession.aggregate([
-                { $match: { user: require('mongoose').Types.ObjectId(userId), ...dateFilter } },
+                { $match: { user: new mongoose.Types.ObjectId(userId), ...dateFilter } },
                 {
                     $group: {
                         _id: '$category',

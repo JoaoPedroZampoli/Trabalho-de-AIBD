@@ -30,6 +30,10 @@ const userSchema = new mongoose.Schema({
         required: true,
         trim: true,
     },
+    favoriteFlashcards: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Flashcard'
+    }],
     accuracy: {
         type: Number,
         default: 0,
@@ -49,7 +53,12 @@ const userSchema = new mongoose.Schema({
     lastLogin: {
         type: Date,
         default: Date.now,
-    }}, {
+    },
+    lastStudyDate: {
+        type: Date,
+        default: null,
+    }
+}, {
     timestamps: true
 });
 
@@ -66,5 +75,3 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 };
 
 module.exports = mongoose.model('User', userSchema);
-
-

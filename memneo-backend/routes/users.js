@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Flashcard = require('../models/Flashcard');
 const { auth } = require('../middleware/auth');
 
 /**
@@ -280,6 +281,125 @@ router.get('/stats', auth, async (req, res) => {
     } catch (error) {
         res.status(500).json({
             message: 'Erro ao obter estatísticas',
+            error: error.message
+        });
+    }
+});
+
+// Adicionar flashcard aos favoritos
+router.post('/favorites/:flashcardId', auth, async (req, res) => {
+    try {
+        const { flashcardId } = req.params;
+        
+        // Verificar se o flashcard existe
+        const flashcard = await Flashcard.findById(flashcardId);
+        if (!flashcard) {
+            return res.status(404).json({ message: 'Flashcard não encontrado' });
+        }
+        
+        const user = await User.findById(req.userId);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado' });
+        }
+
+        // Verificar se o flashcard já está nos favoritos
+        const isAlreadyFavorite = user.favoriteFlashcards.some(fav => 
+            fav.toString() === flashcardId.toString()
+        );
+        
+        if (isAlreadyFavorite) {
+            return res.status(400).json({ message: 'Flashcard já está nos favoritos' });
+        }
+
+        user.favoriteFlashcards.push(flashcardId);
+        await user.save();
+
+        res.json({ 
+            message: 'Flashcard adicionado aos favoritos',
+            favoriteCount: user.favoriteFlashcards.length
+        });
+    } catch (error) {
+        console.error('Erro ao adicionar favorito:', error);
+        res.status(500).json({
+            message: 'Erro ao adicionar favorito',
+            error: error.message
+        });
+    }
+});
+
+// Remover flashcard dos favoritos
+router.delete('/favorites/:flashcardId', auth, async (req, res) => {
+    try {
+        const { flashcardId } = req.params;
+        const user = await User.findById(req.userId);
+        
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado' });
+        }
+
+        const initialCount = user.favoriteFlashcards.length;
+        user.favoriteFlashcards = user.favoriteFlashcards.filter(
+            fav => fav.toString() !== flashcardId.toString()
+        );
+        
+        if (user.favoriteFlashcards.length === initialCount) {
+            return res.status(400).json({ message: 'Flashcard não estava nos favoritos' });
+        }
+        
+        await user.save();
+
+        res.json({ 
+            message: 'Flashcard removido dos favoritos',
+            favoriteCount: user.favoriteFlashcards.length
+        });
+    } catch (error) {
+        console.error('Erro ao remover favorito:', error);
+        res.status(500).json({
+            message: 'Erro ao remover favorito',
+            error: error.message
+        });
+    }
+});
+
+// Obter flashcards favoritos
+router.get('/favorites', auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.userId)
+            .populate({
+                path: 'favoriteFlashcards',
+                populate: {
+                    path: 'category',
+                    select: 'name color'
+                }
+            });
+        
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado' });
+        }
+
+        const favoriteFlashcards = user.favoriteFlashcards.map(flashcard => ({
+            _id: flashcard._id,
+            id: flashcard._id,
+            question: flashcard.question,
+            options: flashcard.options,
+            answer: flashcard.answer,
+            category: flashcard.category.name,
+            categoryColor: flashcard.category.color,
+            difficulty: flashcard.difficulty,
+            tags: flashcard.tags,
+            totalAttempts: flashcard.totalAttempts,
+            correctAttempts: flashcard.correctAttempts,
+            incorrectAttempts: flashcard.incorrectAttempts,
+            accuracy: flashcard.totalAttempts > 0 
+                ? ((flashcard.correctAttempts / flashcard.totalAttempts) * 100).toFixed(1)
+                : 0,
+            isFavorite: true
+        }));
+
+        res.json({ flashcards: favoriteFlashcards });
+    } catch (error) {
+        res.status(500).json({
+            message: 'Erro ao obter favoritos',
             error: error.message
         });
     }

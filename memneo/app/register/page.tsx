@@ -7,6 +7,7 @@ import FormInput from './components/FormInput';
 import StepTransition from './components/StepTransition';
 import StepsIndicator from './components/StepsIndicator';
 import { authApi, authUtils, ApiError, type RegisterData } from '@/lib/api';
+import { useToastHelpers } from '@/lib/toast-types';
 
 
 export default function RegisterPage() {
@@ -26,6 +27,7 @@ export default function RegisterPage() {
     const [errors, setErrors] = useState<{[key: string]: string}>({});
     const [currentStep, setCurrentStep] = useState(1);
     const router = useRouter();
+    const { success, error } = useToastHelpers();
 
     useEffect(() => {
         // Check for saved theme preference
@@ -157,21 +159,32 @@ export default function RegisterPage() {
             authUtils.setToken(response.token);
             authUtils.setUser(response.user);
             
-            // Redirect para dashboard com mensagem de sucesso
-            router.push('/dashboard?message=Cadastro realizado com sucesso!');
-        } catch (error) {
-            console.error('Registration failed:', error);
+            success('Cadastro realizado!', `Bem-vindo, ${response.user.name}!`);
             
-            if (error instanceof ApiError) {
-                if (error.status === 400) {
-                    setErrors({ submit: error.message });
-                } else if (error.status === 0) {
-                    setErrors({ submit: 'Erro de conexão. Verifique se o servidor está rodando.' });
+            // Redirect para dashboard com mensagem de sucesso
+            setTimeout(() => {
+                router.push('/dashboard?message=Cadastro realizado com sucesso!');
+            }, 1000);
+        } catch (err) {
+            console.error('Registration failed:', err);
+            
+            if (err instanceof ApiError) {
+                if (err.status === 400) {
+                    setErrors({ submit: err.message });
+                    error('Erro no cadastro', err.message);
+                } else if (err.status === 0) {
+                    const message = 'Erro de conexão. Verifique se o servidor está rodando.';
+                    setErrors({ submit: message });
+                    error('Erro de conexão', 'Verifique se o servidor está rodando.');
                 } else {
-                    setErrors({ submit: 'Erro interno do servidor. Tente novamente.' });
+                    const message = 'Erro interno do servidor. Tente novamente.';
+                    setErrors({ submit: message });
+                    error('Erro do servidor', 'Erro interno do servidor. Tente novamente.');
                 }
             } else {
-                setErrors({ submit: 'Erro inesperado. Tente novamente.' });
+                const message = 'Erro inesperado. Tente novamente.';
+                setErrors({ submit: message });
+                error('Erro inesperado', 'Tente novamente.');
             }
         } finally {
             setIsLoading(false);

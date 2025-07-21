@@ -1,7 +1,7 @@
 // Types for the dashboard components
 
 export interface Deck {
-    id: number;
+    id: string | number;
     name: string;
     cards: number;
     studied: number;
@@ -10,11 +10,14 @@ export interface Deck {
 }
 
 export interface Category {
-    id: number;
+    _id?: string;
+    id?: string | number;
     name: string;
-    decks: number;
-    totalCards: number;
-    color: string;
+    description?: string;
+    decks?: number;
+    totalCards?: number;
+    color?: string;
+    icon?: string;
 }
 
 export interface StudyStats {
